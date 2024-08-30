@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Office Runner</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #f0f0f0; font-family: Arial, sans-serif; }
+        canvas { display: block; }
+        #instructions { position: absolute; top: 10px; left: 10px; background: rgba(255,255,255,0.7); padding: 10px; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas"></canvas>
+    <div id="instructions">
+        Drücken Sie die Leertaste zum Springen.<br>
+        Weichen Sie den Hindernissen aus!
+    </div>
+    <audio id="music" loop autoplay>
+        <source src="background_music.mp3" type="audio/mpeg">
+    </audio>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        // Setze die Höhe der Figuren auf mindestens 1/4 der Bildschirmhöhe
+        const beraterinHoehePX = canvas.height / 4;
+        const hindernisHoehePX = canvas.height / 4;
+
+        // Abstände
+        const abstandVomBodenPX = canvas.height / 15; // 2 cm vom Boden entfernt bei 30 cm Bildschirmhöhe
+        const abstandVomRandPX = canvas.width / 10; // 3 cm vom linken Rand entfernt bei 30 cm Bildschirmhöhe
+
+        const beraterinBreitePX = beraterinHoehePX * 2 / 3;  // Verhältnis 2:3
+        const hindernisBreitePX = hindernisHoehePX;  // Quadrat
+
+        // Hintergrundbild laden
+        const backgroundImage = new Image();
+        backgroundImage.src = 'background.png'; // Pfad zum neuen Hintergrundbild
+
+        // Lade die freigestellten Bilder
+        const playerImage = new Image();
+        playerImage.src = 'Beraterin.png'; // Pfad zur Beraterin
+
+        const computerImage = new Image();
+        computerImage.src = 'broken pc.png'; // Pfad zum kaputten Computer
+
+        const sleepingColleagueImage = new Image();
+        sleepingColleagueImage.src = 'sleeping collague.png'; // Pfad zum schlafenden Kollegen
+
+        const flipChartImage = new Image();
+        flipChartImage.src = 'flip chart.png'; // Pfad zum umgefallenen Flipchart
+
+        const coffeePuddleImage = new Image();
+        coffeePuddleImage.src = 'spilled coffee.png'; // Pfad zur großen Kaffeepfütze
+
+        const angryClientImage = new Image();
+        angryClientImage.src = 'angry client.png'; // Pfad zum schimpfenden Kunden
+
+        const uffBasseImage = new Image();
+        uffBasseImage.src = 'Uff Basse.png'; // Pfad zur Uff Basse Grafik
+
+        // Musik abspielen
+        const music = document.getElementById('music');
+        music.play();
+
+        let displayUffBasse = false;
+        let uffBasseTimer = 0;
+
+        // Spielerfigur und Hindernisse definieren
+        const player = {
+            x: abstandVomRandPX,
+            y: canvas.height - beraterinHoehePX - abstandVomBodenPX,
+            width: beraterinBreitePX,
+            height: beraterinHoehePX,
+            jumping: false,
+            jumpStrength: 30, // Sprungkraft auf 30 gesetzt
+            yVelocity: 0,
+            draw: function() {
+                ctx.drawImage(playerImage, this.x, this.y, this.width, this.height);
+                if (displayUffBasse) {
+                    ctx.drawImage(uffBasseImage, this.x + this.width / 2, this.y - 60, 150, 100);
+                }
+            }
+        };
+
+        const obstacles = [
+            {x: canvas.width, y: canvas.height - hindernisHoehePX - abstandVomBodenPX, width: hindernisBreitePX, height: hindernisHoehePX, image: computerImage},
+            {x: canvas.width + 600, y: canvas.height - hindernisHoehePX - abstandVomBodenPX, width: hindernisBreitePX, height: hindernisHoehePX, image: sleepingColleagueImage},
+            {x: canvas.width + 1200, y: canvas.height - hindernisHoehePX - abstandVomBodenPX, width: hindernisBreitePX, height: hindernisHoehePX, image: flipChartImage},
+            {x: canvas.width + 1800, y: canvas.height - hindernisHoehePX - abstandVomBodenPX, width: hindernisBreitePX, height: hindernisHoehePX, image: coffeePuddleImage},
+            {x: canvas.width + 2400, y: canvas.height - hindernisHoehePX - abstandVomBodenPX, width: hindernisBreitePX, height: hindernisHoehePX, image: angryClientImage},
+        ];
+
+        let score = 0; // Punktestand beginnt bei 0
+        const gravity = 1;
+        const gameSpeed = 3; // Spielgeschwindigkeit verlangsamt
+
+        function drawBackground() {
+            ctx.drawImage(backgroundImage, 0, 0, canvas.width, canvas.height);
+        }
+
+        function drawObstacles() {
+            obstacles.forEach(obs => {
+                ctx.drawImage(obs.image, obs.x, obs.y, obs.width, obs.height);
+            });
+        }
+
+        function updateGame() {
+            if (displayUffBasse) {
+                uffBasseTimer++;
+                if (uffBasseTimer > 60) {
+                    displayUffBasse = false;
+                    uffBasseTimer = 0;
+                }
+            }
+
+            // Player jump
+            if (player.jumping) {
+                player.yVelocity += gravity;
+                player.y += player.yVelocity;
+                if (player.y > canvas.height - player.height - abstandVomBodenPX) {
+                    player.y = canvas.height - player.height - abstandVomBodenPX;
+                    player.jumping = false;
+                }
+            }
+
+            // Move obstacles
+            obstacles.forEach(obs => {
+                obs.x -= gameSpeed;
+                if (obs.x < -obs.width) {
+                    obs.x = canvas.width + 600; // Konstanter Abstand zwischen den Hindernissen
+                    score++;
+                }
+            });
+
+            // Check collision
+            obstacles.forEach(obs => {
+                if (player.x < obs.x + obs.width &&
+                    player.x + player.width > obs.x &&
+                    player.y < obs.y + obs.height &&
+                    player.y + player.height > obs.y &&
+                    !player.jumping) { // Nur Kollision anzeigen, wenn nicht gesprungen wird
+                    displayUffBasse = true;
+                }
+            });
+        }
+
+        function drawScore() {
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Arial';
+            ctx.fillText('Punkte: ' + score, 10, 30);
+        }
+
+        function resetGame() {
+            player.y = canvas.height - player.height - abstandVomBodenPX;
+            player.jumping = false;
+            score = 0;
+            displayUffBasse = false;
+            obstacles.forEach((obs, index) => {
+                obs.x = canvas.width + index * 600; // Konstanter Abstand von 600px zwischen den Hindernissen
+            });
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawBackground();
+            updateGame();
+            player.draw();
+            drawObstacles();
+            drawScore();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space' && !player.jumping) {
+                player.jumping = true;
+                player.yVelocity = -player.jumpStrength;
+            }
+        });
+
+        resetGame();
+        gameLoop();
+    </script>
+</body>
+</html>
